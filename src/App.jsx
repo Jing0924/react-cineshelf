@@ -109,6 +109,12 @@ export default function App() {
   const [movies, setMovies] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  // 在 App 組件內部新增狀態
+  const [language, setLanguage] = useState("zh-TW");
+  // 切換語系的處理函式
+  const toggleLanguage = () => {
+    setLanguage((prev) => (prev === "zh-TW" ? "en-US" : "zh-TW"));
+  };
 
   // 1. 初始化狀態：直接嘗試從 localStorage 讀取 (保持紀錄功能)
   const [favorites, setFavorites] = useState(() => {
@@ -151,7 +157,7 @@ export default function App() {
         const response = await fetch(
           `${TMDB_BASE_URL}/search/movie?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(
             query,
-          )}&language=zh-TW&include_adult=false`,
+          )}&language=${language}&include_adult=false`,
         );
         if (!response.ok) throw new Error("網路連線發生問題");
         const data = await response.json();
@@ -189,6 +195,21 @@ export default function App() {
     >
       <header style={{ textAlign: "center", marginBottom: "40px" }}>
         <h1 style={{ fontSize: "2.5rem", color: "#333" }}>🎬 CineShelf</h1>
+        <button
+          onClick={toggleLanguage}
+          style={{
+            padding: "8px 16px",
+            borderRadius: "20px",
+            border: "1px solid #ddd",
+            backgroundColor: "#fff",
+            cursor: "pointer",
+            fontSize: "14px",
+            fontWeight: "500",
+            boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+          }}
+        >
+          🌐 {language === "zh-TW" ? "切換至 English" : "Switch to 繁體中文"}
+        </button>
         <p style={{ color: "#666" }}>探索繁體中文電影，打造專屬收藏庫</p>
       </header>
 
