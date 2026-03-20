@@ -1,5 +1,10 @@
 import React, { useState, useEffect } from "react";
 
+// --- 填入你剛拿到的 API Key ---
+const TMDB_API_KEY = "20dad5e77d795a42415b0c27d1587115";
+const TMDB_BASE_URL = "https://api.themoviedb.org/3";
+const TMDB_IMAGE_URL = "https://image.tmdb.org/t/p/w500";
+
 /**
  * 子組件：搜尋列 (SearchBar)
  */
@@ -8,7 +13,7 @@ function SearchBar({ query, setQuery }) {
     <div style={{ marginBottom: "30px", textAlign: "center" }}>
       <input
         type="text"
-        placeholder="請輸入電影名稱 (例如: Batman)"
+        placeholder="請輸入電影名稱 (例如: 蝙蝠俠)"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         style={{
@@ -28,15 +33,16 @@ function SearchBar({ query, setQuery }) {
 
 /**
  * 子組件：電影卡片 (MovieCard)
- * 已重構為 RWD 佈局，移除固定寬度
+ * 已重構為 RWD 佈局，並對應 TMDb 資料結構
  */
 function MovieCard({ movie, favorites, setFavorites }) {
-  const handleAddFavorite = () => {
-    const isExist = favorites.some((fav) => fav.imdbID === movie.imdbID);
+  const isExist = favorites.some((fav) => fav.id === movie.id);
+
+  const handleToggleFavorite = () => {
     if (!isExist) {
       setFavorites([...favorites, movie]);
     } else {
-      alert("這部電影已經在收藏清單中囉！");
+      setFavorites(favorites.filter((fav) => fav.id !== movie.id));
     }
   };
 
@@ -47,7 +53,7 @@ function MovieCard({ movie, favorites, setFavorites }) {
         borderRadius: "12px",
         padding: "15px",
         display: "flex",
-        flexDirection: "column", // 垂直排列：圖片 -> 標題 -> 按鈕
+        flexDirection: "column", // 垂直排列
         backgroundColor: "#fff",
         transition: "transform 0.2s",
         boxShadow: "0 4px 6px rgba(0,0,0,0.05)",
@@ -56,11 +62,11 @@ function MovieCard({ movie, favorites, setFavorites }) {
     >
       <img
         src={
-          movie.Poster !== "N/A"
-            ? movie.Poster
-            : "https://via.placeholder.com/300x450?text=No+Image"
+          movie.poster_path
+            ? `${TMDB_IMAGE_URL}${movie.poster_path}` // TMDb 需要組合完整的圖片網址
+            : "https://via.placeholder.com/300x450?text=無海報"
         }
-        alt={movie.Title}
+        alt={movie.title}
         style={{
           width: "100%",
           height: "300px",
@@ -70,75 +76,91 @@ function MovieCard({ movie, favorites, setFavorites }) {
         }}
       />
       <h4 style={{ fontSize: "16px", margin: "0 0 8px 0", flexGrow: 1 }}>
-        {movie.Title}
+        {movie.title || movie.name}
       </h4>
       <p style={{ color: "#888", fontSize: "14px", marginBottom: "12px" }}>
-        📅 {movie.Year}
+        📅 {movie.release_date || movie.first_air_date || "未知"}
       </p>
       <button
-        onClick={handleAddFavorite}
+        onClick={handleToggleFavorite}
         style={{
           cursor: "pointer",
           width: "100%",
           padding: "10px",
-          backgroundColor: "#f0c14b",
-          border: "1px solid #a88734",
+          backgroundColor: isExist ? "#ff4d4f" : "#f0c14b",
+          color: isExist ? "#fff" : "#333",
+          border: isExist ? "1px solid #ff4d4f" : "1px solid #a88734",
           borderRadius: "4px",
           fontWeight: "bold",
           marginTop: "auto", // 將按鈕推至卡片最底部對齊
         }}
       >
-        ⭐ 收藏
+        {isExist ? "🗑️ 移除收藏" : "⭐ 收藏"}
       </button>
     </div>
   );
 }
 
 /**
- * 主組件：CineShelf App
+ * 主組件：CineShelf App (TMDb 版)
  */
 export default function App() {
   const [query, setQuery] = useState("");
   const [movies, setMovies] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  // 1. 初始化狀態：直接嘗試從 localStorage 讀取
+
+  // 1. 初始化狀態：直接嘗試從 localStorage 讀取 (保持紀錄功能)
   const [favorites, setFavorites] = useState(() => {
-    const savedFavorites = localStorage.getItem("cineShelf_favorites");
-    return savedFavorites ? JSON.parse(savedFavorites) : [];
+    try {
+      const savedFavorites = localStorage.getItem("cineShelf_favorites_tmdb");
+      return savedFavorites ? JSON.parse(savedFavorites) : [];
+    } catch (error) {
+      console.error("無法解析 localStorage 內容:", error);
+      return [];
+    }
   });
 
   // 2. 監聽 favorites 的變化：每當收藏清單更新，就存入 localStorage
   useEffect(() => {
-    localStorage.setItem("cineShelf_favorites", JSON.stringify(favorites));
+    localStorage.setItem("cineShelf_favorites_tmdb", JSON.stringify(favorites));
   }, [favorites]);
 
   const removeFavorite = (id) => {
-    setFavorites(favorites.filter((movie) => movie.imdbID !== id));
+    setFavorites(favorites.filter((movie) => movie.id !== id));
   };
 
+  // 3. 核心功能：串接 TMDb API 搜尋電影
   useEffect(() => {
-    if (query.length < 3) {
+    if (query.length < 2) {
+      // TMDb 2個字就可以搜尋
       setMovies([]);
       setError("");
       return;
     }
 
     const fetchMovies = async () => {
+      if (!TMDB_API_KEY || TMDB_API_KEY === "你的_TMDB_API_KEY") {
+        setError("請在 App.js 中設定您的 TMDb API Key！");
+        return;
+      }
+
       setLoading(true);
       setError("");
       try {
         const response = await fetch(
-          `https://www.omdbapi.com/?s=${encodeURIComponent(query)}&apikey=d22a821e`,
+          `${TMDB_BASE_URL}/search/movie?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(
+            query,
+          )}&language=zh-TW&include_adult=false`,
         );
         if (!response.ok) throw new Error("網路連線發生問題");
         const data = await response.json();
 
-        if (data.Response === "True") {
-          setMovies(data.Search);
+        if (data.results && data.results.length > 0) {
+          setMovies(data.results);
         } else {
           setMovies([]);
-          setError(data.Error);
+          setError("找不到這部電影，試試別的關鍵字？");
         }
       } catch (err) {
         setError("無法連線至伺服器，請檢查網路。");
@@ -149,7 +171,7 @@ export default function App() {
 
     const debounceTimer = setTimeout(() => {
       fetchMovies();
-    }, 500); // 加入簡易防抖，避免輸入每個字都發請求
+    }, 500); // 防抖，避免輸入每個字都發請求
 
     return () => clearTimeout(debounceTimer);
   }, [query]);
@@ -167,7 +189,7 @@ export default function App() {
     >
       <header style={{ textAlign: "center", marginBottom: "40px" }}>
         <h1 style={{ fontSize: "2.5rem", color: "#333" }}>🎬 CineShelf</h1>
-        <p style={{ color: "#666" }}>探索你喜愛的電影，打造專屬收藏庫</p>
+        <p style={{ color: "#666" }}>探索繁體中文電影，打造專屬收藏庫</p>
       </header>
 
       <SearchBar query={query} setQuery={setQuery} />
@@ -188,8 +210,8 @@ export default function App() {
             ⚠️ {error}
           </p>
         )}
-        {!loading && !error && query.length > 0 && query.length < 3 && (
-          <p style={{ color: "#999" }}>請輸入至少 3 個字來開始探索...</p>
+        {!loading && !error && query.length > 0 && query.length < 2 && (
+          <p style={{ color: "#999" }}>請輸入至少 2 個字來開始探索...</p>
         )}
       </div>
 
@@ -199,14 +221,14 @@ export default function App() {
           style={{
             display: "grid",
             // RWD 核心：自動計算欄數，每欄最小 220px
-            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+            gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
             gap: "25px",
             marginTop: "20px",
           }}
         >
           {movies.map((movie) => (
             <MovieCard
-              key={movie.imdbID}
+              key={movie.id}
               movie={movie}
               favorites={favorites}
               setFavorites={setFavorites}
@@ -243,17 +265,14 @@ export default function App() {
             }}
           >
             {favorites.map((fav) => (
-              <div
-                key={fav.imdbID}
-                style={{ width: "100px", textAlign: "center" }}
-              >
+              <div key={fav.id} style={{ width: "100px", textAlign: "center" }}>
                 <img
                   src={
-                    fav.Poster !== "N/A"
-                      ? fav.Poster
-                      : "https://via.placeholder.com/100x150"
+                    fav.poster_path
+                      ? `${TMDB_IMAGE_URL}${fav.poster_path}`
+                      : "https://via.placeholder.com/100x150?text=無海報"
                   }
-                  alt={fav.Title}
+                  alt={fav.title}
                   style={{
                     width: "100%",
                     borderRadius: "6px",
@@ -269,10 +288,10 @@ export default function App() {
                     textOverflow: "ellipsis",
                   }}
                 >
-                  {fav.Title}
+                  {fav.title || fav.name}
                 </p>
                 <button
-                  onClick={() => removeFavorite(fav.imdbID)}
+                  onClick={() => removeFavorite(fav.id)}
                   style={{
                     color: "#ff4d4f",
                     background: "none",
