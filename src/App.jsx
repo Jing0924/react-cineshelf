@@ -1,7 +1,13 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
+import "./App.css";
+import SearchBar from "./components/SearchBar";
+import MovieCard from "./components/MovieCard";
+import MovieModal from "./components/MovieModal";
+import SearchHistory from "./components/SearchHistory";
+import FilterBar from "./components/FilterBar";
 
 // --- TMDb API 設定 ---
-const TMDB_API_KEY = "20dad5e77d795a42415b0c27d1587115";
+const TMDB_API_KEY = import.meta.env.VITE_TMDB_API_KEY;
 const TMDB_BASE_URL = "https://api.themoviedb.org/3";
 const TMDB_IMAGE_URL = "https://image.tmdb.org/t/p/w500";
 
@@ -23,6 +29,20 @@ const i18n = {
     error: "網路連線發生問題，請檢查 API Key 或網路。",
     overviewTitle: "劇情簡介",
     noOverview: "暫無劇情簡介。",
+    recentSearches: "最近搜尋",
+    clearHistory: "清除紀錄",
+    sortBy: "排序",
+    sortPopularity: "熱門度（高到低）",
+    sortRating: "評分（高到低）",
+    sortReleaseDate: "上映日期（新到舊）",
+    filterYear: "年份",
+    allYears: "全部",
+    loadMore: "載入更多",
+    loadingMore: "載入中...",
+    watchlist: "想看",
+    watched: "已看",
+    markAsWatched: "標記已看",
+    markAsWatchlist: "標記想看",
   },
   "en-US": {
     title: "🎬 CineShelf",
@@ -40,193 +60,38 @@ const i18n = {
     error: "Connection error. Please check your API Key or network.",
     overviewTitle: "Overview",
     noOverview: "No overview available.",
+    recentSearches: "Recent Searches",
+    clearHistory: "Clear",
+    sortBy: "Sort by",
+    sortPopularity: "Popularity (desc)",
+    sortRating: "Rating (desc)",
+    sortReleaseDate: "Release date (newest)",
+    filterYear: "Year",
+    allYears: "All",
+    loadMore: "Load More",
+    loadingMore: "Loading...",
+    watchlist: "Watchlist",
+    watched: "Watched",
+    markAsWatched: "Mark Watched",
+    markAsWatchlist: "Mark Watchlist",
   },
 };
-
-/**
- * 子組件：搜尋列 (SearchBar)
- */
-function SearchBar({ query, setQuery, placeholder }) {
-  return (
-    <div style={{ marginBottom: "30px", textAlign: "center" }}>
-      <input
-        type="text"
-        placeholder={placeholder}
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        style={{
-          padding: "12px 20px",
-          width: "90%",
-          maxWidth: "600px",
-          borderRadius: "25px",
-          border: "1px solid #ccc",
-          fontSize: "16px",
-          outline: "none",
-          boxShadow: "0 2px 5px rgba(0,0,0,0.1)",
-        }}
-      />
-    </div>
-  );
-}
-
-/**
- * 子組件：電影卡片 (MovieCard)
- */
-function MovieCard({ movie, favorites, setFavorites, t, onSelect }) {
-  const isExist = favorites.some((fav) => fav.id === movie.id);
-
-  const handleToggleFavorite = (e) => {
-    e.stopPropagation(); // 重點：防止點擊按鈕時也開啟 Modal
-    if (!isExist) {
-      setFavorites([...favorites, movie]);
-    } else {
-      setFavorites(favorites.filter((fav) => fav.id !== movie.id));
-    }
-  };
-
-  return (
-    <div
-      style={{
-        border: "1px solid #eee",
-        borderRadius: "12px",
-        padding: "15px",
-        display: "flex",
-        flexDirection: "column",
-        backgroundColor: "#fff",
-        boxShadow: "0 4px 6px rgba(0,0,0,0.05)",
-        height: "100%",
-        cursor: "pointer",
-      }}
-      onClick={() => onSelect(movie)}
-    >
-      <img
-        src={
-          movie.poster_path
-            ? `${TMDB_IMAGE_URL}${movie.poster_path}`
-            : "https://via.placeholder.com/300x450?text=No+Poster"
-        }
-        alt={movie.title}
-        style={{
-          width: "100%",
-          height: "300px",
-          objectFit: "cover",
-          borderRadius: "8px",
-          marginBottom: "12px",
-        }}
-      />
-      <h4 style={{ fontSize: "16px", margin: "0 0 8px 0", flexGrow: 1 }}>
-        {movie.title || movie.name}
-      </h4>
-      <p style={{ color: "#888", fontSize: "14px", marginBottom: "12px" }}>
-        📅 {movie.release_date || movie.first_air_date || "---"}
-      </p>
-      <button
-        onClick={handleToggleFavorite}
-        style={{
-          cursor: "pointer",
-          width: "100%",
-          padding: "10px",
-          borderRadius: "4px",
-          fontWeight: "bold",
-          marginTop: "auto",
-          backgroundColor: isExist ? "#ff4d4f" : "#f0c14b",
-          color: isExist ? "#fff" : "#333",
-          border: isExist ? "1px solid #ff4d4f" : "1px solid #a88734",
-        }}
-      >
-        {isExist ? t.removeFav : t.addFav}
-      </button>
-    </div>
-  );
-}
-
-function MovieModal({ movie, onClose, t }) {
-  if (!movie) return null;
-
-  return (
-    <div
-      style={{
-        position: "fixed",
-        top: 0,
-        left: 0,
-        width: "100%",
-        height: "100%",
-        backgroundColor: "rgba(0,0,0,0.8)",
-        display: "flex",
-        justifyContent: "center",
-        alignItems: "center",
-        zIndex: 1000,
-        padding: "20px",
-      }}
-      onClick={onClose} // 點擊背景關閉
-    >
-      <div
-        style={{
-          backgroundColor: "#fff",
-          borderRadius: "15px",
-          maxWidth: "800px",
-          width: "100%",
-          maxHeight: "90vh",
-          overflowY: "auto",
-          position: "relative",
-          display: "flex",
-          flexDirection: window.innerWidth > 600 ? "row" : "column",
-        }}
-        onClick={(e) => e.stopPropagation()} // 防止點擊視窗內部也關閉
-      >
-        <button
-          onClick={onClose}
-          style={{
-            position: "absolute",
-            top: "10px",
-            right: "15px",
-            fontSize: "24px",
-            border: "none",
-            background: "none",
-            cursor: "pointer",
-          }}
-        >
-          &times;
-        </button>
-
-        <img
-          src={
-            movie.poster_path
-              ? `${TMDB_IMAGE_URL}${movie.poster_path}`
-              : "https://via.placeholder.com/300x450"
-          }
-          alt={movie.title}
-          style={{
-            width: window.innerWidth > 600 ? "40%" : "100%",
-            objectFit: "cover",
-          }}
-        />
-
-        <div style={{ padding: "30px", flex: 1 }}>
-          <h2 style={{ marginBottom: "10px" }}>{movie.title || movie.name}</h2>
-          <p style={{ color: "#888", marginBottom: "20px" }}>
-            📅 {movie.release_date || movie.first_air_date} | ⭐{" "}
-            {movie.vote_average}/10
-          </p>
-          <h3>{t.overviewTitle}</h3>
-          <p style={{ lineHeight: "1.6", color: "#444" }}>
-            {movie.overview || t.noOverview}
-          </p>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 /**
  * 主組件：CineShelf App
  */
 export default function App() {
+  const MAX_HISTORY_ITEMS = 8;
   const [query, setQuery] = useState("");
   const [movies, setMovies] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState("");
   const [selectedMovie, setSelectedMovie] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [sortBy, setSortBy] = useState("popularity");
+  const [filterYear, setFilterYear] = useState("all");
 
   // 1. 語系狀態 (預設從 localStorage 讀取，若無則預設中文)
   const [language, setLanguage] = useState(() => {
@@ -238,6 +103,16 @@ export default function App() {
   // 2. 收藏清單狀態
   const [favorites, setFavorites] = useState(() => {
     const saved = localStorage.getItem("cineShelf_favorites_tmdb");
+    if (!saved) return [];
+
+    const parsed = JSON.parse(saved);
+    return parsed.map((item) => ({
+      ...item,
+      status: item.status === "watched" ? "watched" : "watchlist",
+    }));
+  });
+  const [searchHistory, setSearchHistory] = useState(() => {
+    const saved = localStorage.getItem("cineShelf_search_history");
     return saved ? JSON.parse(saved) : [];
   });
 
@@ -250,78 +125,131 @@ export default function App() {
     localStorage.setItem("cineShelf_lang", language);
   }, [language]);
 
+  useEffect(() => {
+    localStorage.setItem("cineShelf_search_history", JSON.stringify(searchHistory));
+  }, [searchHistory]);
+
   const toggleLanguage = () => {
     setLanguage((prev) => (prev === "zh-TW" ? "en-US" : "zh-TW"));
   };
 
-  // 4. API 搜尋邏輯 (連動 query 與 language)
+  const addSearchHistory = (keyword) => {
+    const normalizedKeyword = keyword.trim();
+    if (normalizedKeyword.length < 2) return;
+
+    setSearchHistory((prev) => {
+      const withoutDuplicate = prev.filter((item) => item !== normalizedKeyword);
+      return [normalizedKeyword, ...withoutDuplicate].slice(0, MAX_HISTORY_ITEMS);
+    });
+  };
+
+  const yearOptions = useMemo(() => {
+    const currentYear = new Date().getFullYear();
+    return Array.from({ length: 20 }, (_, index) => String(currentYear - index));
+  }, []);
+
+  const displayedMovies = useMemo(() => {
+    const filteredMovies =
+      filterYear === "all"
+        ? movies
+        : movies.filter((movie) => {
+          const dateValue = movie.release_date || movie.first_air_date || "";
+          return dateValue.startsWith(filterYear);
+        });
+
+    return [...filteredMovies].sort((a, b) => {
+      if (sortBy === "rating") {
+        return (b.vote_average || 0) - (a.vote_average || 0);
+      }
+
+      if (sortBy === "releaseDate") {
+        return new Date(b.release_date || b.first_air_date || 0) - new Date(a.release_date || a.first_air_date || 0);
+      }
+
+      return (b.popularity || 0) - (a.popularity || 0);
+    });
+  }, [movies, filterYear, sortBy]);
+
+  const toggleFavoriteStatus = (id) => {
+    setFavorites((prev) =>
+      prev.map((item) =>
+        item.id === id
+          ? { ...item, status: item.status === "watched" ? "watchlist" : "watched" }
+          : item,
+      ),
+    );
+  };
+
+  useEffect(() => {
+    setCurrentPage(1);
+    setTotalPages(1);
+  }, [query, language]);
+
+  // 4. API 搜尋邏輯 (連動 query / language / page)
   useEffect(() => {
     if (query.length < 2) {
       setMovies([]);
       setError("");
+      setCurrentPage(1);
+      setTotalPages(1);
       return;
     }
 
     const fetchMovies = async () => {
-      setLoading(true);
+      if (currentPage === 1) {
+        addSearchHistory(query);
+        setLoading(true);
+      } else {
+        setLoadingMore(true);
+      }
       setError("");
       try {
         const response = await fetch(
-          `${TMDB_BASE_URL}/search/movie?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(query)}&language=${language}&include_adult=false`,
+          `${TMDB_BASE_URL}/search/movie?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(query)}&language=${language}&include_adult=false&page=${currentPage}`,
         );
         if (!response.ok) throw new Error();
         const data = await response.json();
+        const nextResults = data.results || [];
+        setTotalPages(data.total_pages || 1);
 
-        if (data.results && data.results.length > 0) {
-          setMovies(data.results);
+        if (nextResults.length > 0) {
+          if (currentPage === 1) {
+            setMovies(nextResults);
+          } else {
+            setMovies((prev) => {
+              const existingIds = new Set(prev.map((item) => item.id));
+              const uniqueResults = nextResults.filter((item) => !existingIds.has(item.id));
+              return [...prev, ...uniqueResults];
+            });
+          }
         } else {
-          setMovies([]);
-          setError(t.noResults);
+          if (currentPage === 1) {
+            setMovies([]);
+            setError(t.noResults);
+          }
         }
-      } catch (err) {
+      } catch {
         setError(t.error);
       } finally {
         setLoading(false);
+        setLoadingMore(false);
       }
     };
 
     const debounceTimer = setTimeout(fetchMovies, 500);
     return () => clearTimeout(debounceTimer);
-  }, [query, language]);
+  }, [query, language, currentPage, t.error, t.noResults]);
 
   return (
-    <div
-      style={{
-        maxWidth: "1200px",
-        margin: "0 auto",
-        padding: "40px 20px",
-        fontFamily: "sans-serif",
-        backgroundColor: "#fcfcfc",
-        minHeight: "100vh",
-      }}
-    >
+    <div className="app-container">
       {/* 語系切換按鈕固定在右上角 */}
-      <button
-        onClick={toggleLanguage}
-        style={{
-          position: "fixed",
-          top: "20px",
-          right: "20px",
-          padding: "8px 15px",
-          borderRadius: "20px",
-          border: "1px solid #ddd",
-          backgroundColor: "#fff",
-          cursor: "pointer",
-          boxShadow: "0 2px 5px rgba(0,0,0,0.1)",
-          zIndex: 100,
-        }}
-      >
+      <button onClick={toggleLanguage} className="language-switch-btn">
         🌐 {t.switchBtn}
       </button>
 
-      <header style={{ textAlign: "center", marginBottom: "40px" }}>
-        <h1 style={{ fontSize: "2.5rem", color: "#333" }}>{t.title}</h1>
-        <p style={{ color: "#666" }}>{t.subtitle}</p>
+      <header className="app-header">
+        <h1 className="app-title">{t.title}</h1>
+        <p className="app-subtitle">{t.subtitle}</p>
       </header>
 
       <SearchBar
@@ -329,74 +257,74 @@ export default function App() {
         setQuery={setQuery}
         placeholder={t.placeholder}
       />
+      <SearchHistory
+        history={searchHistory}
+        onSelect={setQuery}
+        onClear={() => setSearchHistory([])}
+        t={t}
+      />
 
-      <div style={{ textAlign: "center", minHeight: "50px" }}>
+      {!loading && movies.length > 0 && (
+        <FilterBar
+          t={t}
+          sortBy={sortBy}
+          onSortChange={setSortBy}
+          filterYear={filterYear}
+          onYearChange={setFilterYear}
+          yearOptions={yearOptions}
+        />
+      )}
+
+      <div className="status-message-container">
         {loading && <p>{t.loading}</p>}
         {!loading && error && (
-          <p
-            style={{
-              color: "#d32f2f",
-              backgroundColor: "#ffebee",
-              padding: "10px",
-              borderRadius: "8px",
-              display: "inline-block",
-            }}
-          >
+          <p className="status-error-message">
             ⚠️ {error}
           </p>
         )}
         {!loading && !error && query.length > 0 && query.length < 2 && (
-          <p style={{ color: "#999" }}>{t.minChars}</p>
+          <p className="status-min-chars-message">{t.minChars}</p>
         )}
       </div>
 
-      {!loading && movies.length > 0 && (
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
-            gap: "25px",
-            marginTop: "20px",
-          }}
-        >
-          {movies.map((movie) => (
+      {!loading && displayedMovies.length > 0 && (
+        <div className="movie-grid">
+          {displayedMovies.map((movie) => (
             <MovieCard
               key={movie.id}
               movie={movie}
               favorites={favorites}
               setFavorites={setFavorites}
               t={t}
-              onSelect={setSelectedMovie} // 重點：把設定 state 的函式傳下去
+              onSelect={setSelectedMovie}
+              imageBaseUrl={TMDB_IMAGE_URL}
             />
           ))}
         </div>
       )}
 
-      <section
-        style={{
-          marginTop: "60px",
-          borderTop: "2px solid #eee",
-          paddingTop: "40px",
-        }}
-      >
-        <h2 style={{ marginBottom: "20px" }}>
+      {!loading && movies.length > 0 && currentPage < totalPages && (
+        <div className="load-more-container">
+          <button
+            className="load-more-btn"
+            onClick={() => setCurrentPage((prev) => prev + 1)}
+            disabled={loadingMore}
+          >
+            {loadingMore ? t.loadingMore : t.loadMore}
+          </button>
+        </div>
+      )}
+
+      <section className="favorites-section">
+        <h2 className="favorites-title">
           {t.myFavorites} ({favorites.length})
         </h2>
         {favorites.length === 0 ? (
-          <p style={{ color: "#999", fontStyle: "italic" }}>{t.emptyFav}</p>
+          <p className="favorites-empty-message">{t.emptyFav}</p>
         ) : (
-          <div
-            style={{
-              display: "flex",
-              flexWrap: "wrap",
-              gap: "15px",
-              backgroundColor: "#fff",
-              padding: "20px",
-              borderRadius: "15px",
-            }}
-          >
+          <div className="favorites-list">
             {favorites.map((fav) => (
-              <div key={fav.id} style={{ width: "100px", textAlign: "center" }}>
+              <div key={fav.id} className="favorite-item">
                 <img
                   src={
                     fav.poster_path
@@ -404,30 +332,25 @@ export default function App() {
                       : "https://via.placeholder.com/100x150"
                   }
                   alt={fav.title}
-                  style={{ width: "100%", borderRadius: "6px" }}
+                  className="favorite-item-poster"
                 />
-                <p
-                  style={{
-                    fontSize: "12px",
-                    margin: "5px 0",
-                    whiteSpace: "nowrap",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                  }}
-                >
+                <p className="favorite-item-title">
                   {fav.title || fav.name}
                 </p>
+                <p className={`favorite-item-status ${fav.status === "watched" ? "is-watched" : "is-watchlist"}`}>
+                  {fav.status === "watched" ? t.watched : t.watchlist}
+                </p>
+                <button
+                  onClick={() => toggleFavoriteStatus(fav.id)}
+                  className="favorite-item-status-btn"
+                >
+                  {fav.status === "watched" ? t.markAsWatchlist : t.markAsWatched}
+                </button>
                 <button
                   onClick={() =>
                     setFavorites(favorites.filter((f) => f.id !== fav.id))
                   }
-                  style={{
-                    color: "#ff4d4f",
-                    background: "none",
-                    border: "none",
-                    cursor: "pointer",
-                    fontSize: "12px",
-                  }}
+                  className="favorite-item-remove-btn"
                 >
                   {t.remove}
                 </button>
@@ -440,6 +363,7 @@ export default function App() {
         movie={selectedMovie}
         onClose={() => setSelectedMovie(null)}
         t={t}
+        imageBaseUrl={TMDB_IMAGE_URL}
       />
     </div>
   );
